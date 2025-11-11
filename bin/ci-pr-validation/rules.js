@@ -16,8 +16,11 @@ const rules = [
 		condition: function(baseRef, changedFiles){
 			if(baseRef === 'tiddlywiki-com') {
 				const allInEditions = changedFiles.every(file => file.startsWith('editions/'));
-				const CLAOnly = changedFiles.length === 1 && changedFiles[0].startsWith("licenses/")
-				if(!allInEditions && !CLAOnly) {
+				const CLAOnly = changedFiles.length === 1 && changedFiles[0].startsWith("licenses/");
+				const communityPeople = changedFiles.every(file => 
+					file.startsWith('community/people/') || file.startsWith('licenses/')
+				);
+				if(!allInEditions && !CLAOnly && !communityPeople) {
 					return true
 				}
 			}
@@ -34,7 +37,10 @@ const rules = [
 		id: 2,
 		condition: function(baseRef, changedFiles){
 			if(baseRef === 'master') {
-				const allInEditions = changedFiles.every(file => file.startsWith('editions/'));
+				// Exclude release notes - they should target master
+				const allInEditions = changedFiles.every(file => 
+					file.startsWith('editions/') && !file.match(/editions\/.*\/tiddlers\/releasenotes\//)
+				);
 				if(allInEditions) {
 					return true
 				}
