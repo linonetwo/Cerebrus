@@ -5,10 +5,7 @@ import {
 	parseChangeNotesFromContent,
 	parseTiddlerContent 
 } from './changenote.js';
-
-const CEREBRUS_IDENTIFIER = "<!-- Cerebrus PR report -->";
-const CHANGENOTE_SECTION_START = "<!-- Change Note Section -->";
-const CHANGENOTE_SECTION_END = "<!-- End Change Note Section -->";
+import { CEREBRUS_IDENTIFIER, updateCommentSection, createCommentWithSection } from './comment-sections.js';
 
 // Fetch file content from GitHub API
 async function fetchFileFromGitHub(octokit, owner, repo, path, ref) {
@@ -30,20 +27,6 @@ async function fetchFileFromGitHub(octokit, owner, repo, path, ref) {
 	} catch (error) {
 		console.error(`Error fetching ${path}:`, error.message);
 		return null;
-	}
-}
-
-// Helper function to replace or append section in existing comment
-function replaceOrAppendSection(existingBody, newSection) {
-	// Check if change note section already exists
-	const sectionRegex = new RegExp(`${CHANGENOTE_SECTION_START}[\\s\\S]*?${CHANGENOTE_SECTION_END}`);
-	
-	if (sectionRegex.test(existingBody)) {
-		// Replace existing section
-		return existingBody.replace(sectionRegex, newSection);
-	} else {
-		// Append new section
-		return `${existingBody}\n\n${newSection}`;
 	}
 }
 
@@ -147,19 +130,16 @@ export default async function validateChangeNotes(context, octokit, dryRun) {
 		
 		// Post or update comment to PR
 		if (!dryRun) {
-			// Wrap content in section markers
-			const sectionedContent = `${CHANGENOTE_SECTION_START}\n\n${commentBody}\n\n${CHANGENOTE_SECTION_END}`;
-			
 			// Check if there's an existing Cerebrus comment
 			const existingComment = await utils.getExistingComment(owner, repoName, prNumber, CEREBRUS_IDENTIFIER);
 			
 			if (existingComment) {
 				// Update existing comment, replacing the change note section
-				const updatedBody = replaceOrAppendSection(existingComment.body, sectionedContent);
+				const updatedBody = updateCommentSection(existingComment.body, 'CHANGE_NOTE', commentBody);
 				await utils.updateComment(owner, repoName, prNumber, existingComment.id, updatedBody);
 			} else {
 				// Create new comment with Cerebrus identifier
-				const fullComment = `${CEREBRUS_IDENTIFIER}\n\n${sectionedContent}`;
+				const fullComment = createCommentWithSection('CHANGE_NOTE', commentBody);
 				await utils.postComment(owner, repoName, prNumber, fullComment);
 			}
 		} else {

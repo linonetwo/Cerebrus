@@ -2,10 +2,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import PRCommentUtils from './pr-comment-utils.js';
 import rules from './rules.js';
-
-const CEREBRUS_IDENTIFIER = "<!-- Cerebrus PR report -->";
-const PATH_VALIDATION_SECTION_START = "<!-- Path Validation Section -->";
-const PATH_VALIDATION_SECTION_END = "<!-- End Path Validation Section -->";
+import { CEREBRUS_IDENTIFIER, updateCommentSection, removeCommentSection, createCommentWithSection } from './comment-sections.js';
 
 async function applyRules(context, octokit, dryRun) {
 	const { prNumber, repo, baseRef, owner, repoName } = context;
@@ -45,46 +42,31 @@ async function applyRules(context, octokit, dryRun) {
 	const existing = await utils.getExistingComment(owner, repoName, prNumber, CEREBRUS_IDENTIFIER);
 
 	if(messages.length && !abort) {
-		const pathMessage = messages.join("\n");
-		const sectionedMessage = `${PATH_VALIDATION_SECTION_START}\n${pathMessage}\n${PATH_VALIDATION_SECTION_END}`;
+		const pathMessage = messages.join("\n").trim();
 		
 		if(dryRun) {
 			console.log(`💬 [dry-run] Would post comment:\n${pathMessage}`);
 		} else {
 			if (existing) {
 				// Update existing comment, replacing the path validation section
-				const updatedBody = replaceOrAppendSection(existing.body, sectionedMessage);
+				const updatedBody = updateCommentSection(existing.body, 'PATH_VALIDATION', pathMessage);
 				await utils.updateComment(owner, repoName, prNumber, existing.id, updatedBody);
 			} else {
 				// Create new comment with Cerebrus identifier
-				const fullComment = `${CEREBRUS_IDENTIFIER}\n\n${sectionedMessage}`;
+				const fullComment = createCommentWithSection('PATH_VALIDATION', pathMessage);
 				await utils.postComment(owner, repoName, prNumber, fullComment);
 			}
 		}
 	} else if (existing && !dryRun) {
 		// Remove path validation section if no messages
-		const updatedBody = removeSection(existing.body, PATH_VALIDATION_SECTION_START, PATH_VALIDATION_SECTION_END);
-		if (updatedBody !== existing.body) {
+		const updatedBody = removeCommentSection(existing.body, 'PATH_VALIDATION');
+		if (updatedBody && updatedBody !== existing.body) {
 			await utils.updateComment(owner, repoName, prNumber, existing.id, updatedBody);
+		} else if (!updatedBody) {
+			// No sections left, delete the comment
+			await utils.deleteComment(owner, repoName, prNumber, existing.id);
 		}
 	}
-}
-
-// Helper function to replace or append section in existing comment
-function replaceOrAppendSection(existingBody, newSection) {
-	const sectionRegex = new RegExp(`${PATH_VALIDATION_SECTION_START}[\\s\\S]*?${PATH_VALIDATION_SECTION_END}`);
-	
-	if (sectionRegex.test(existingBody)) {
-		return existingBody.replace(sectionRegex, newSection);
-	} else {
-		return `${existingBody}\n\n${newSection}`;
-	}
-}
-
-// Helper function to remove section from existing comment
-function removeSection(existingBody, sectionStart, sectionEnd) {
-	const sectionRegex = new RegExp(`${sectionStart}[\\s\\S]*?${sectionEnd}\\n*`, 'g');
-	return existingBody.replace(sectionRegex, '').trim();
 }
 
 export default applyRules;

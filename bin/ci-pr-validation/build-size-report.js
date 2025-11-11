@@ -1,8 +1,5 @@
 import PRCommentUtils from './pr-comment-utils.js';
-
-const CEREBRUS_IDENTIFIER = "<!-- Cerebrus PR report -->";
-const BUILD_SIZE_SECTION_START = "<!-- Build Size Section -->";
-const BUILD_SIZE_SECTION_END = "<!-- End Build Size Section -->";
+import { CEREBRUS_IDENTIFIER, updateCommentSection, createCommentWithSection } from './comment-sections.js';
 
 function humanize(bytes) {
 	return `${(bytes / 1024).toFixed(1)} KB`;
@@ -75,7 +72,6 @@ async function commentSize(context, octokit, dryRun) {
     } = context;
 
     const message = generateMarkdown(context);
-    const sectionedMessage = `${BUILD_SIZE_SECTION_START}\n\n${message}\n${BUILD_SIZE_SECTION_END}`;
     
     const utils = new PRCommentUtils(octokit);
     if(dryRun) {
@@ -86,27 +82,13 @@ async function commentSize(context, octokit, dryRun) {
         
         if (existingComment) {
             // Update existing comment, replacing the build size section
-            const updatedBody = replaceOrAppendSection(existingComment.body, sectionedMessage);
+            const updatedBody = updateCommentSection(existingComment.body, 'BUILD_SIZE', message);
             await utils.updateComment(owner, repoName, prNumber, existingComment.id, updatedBody);
         } else {
             // Create new comment with Cerebrus identifier
-            const fullComment = `${CEREBRUS_IDENTIFIER}\n\n${sectionedMessage}`;
+            const fullComment = createCommentWithSection('BUILD_SIZE', message);
             await utils.postComment(owner, repoName, prNumber, fullComment);
         }
-    }
-}
-
-// Helper function to replace or append section in existing comment
-function replaceOrAppendSection(existingBody, newSection) {
-    // Check if build size section already exists
-    const sectionRegex = new RegExp(`${BUILD_SIZE_SECTION_START}[\\s\\S]*?${BUILD_SIZE_SECTION_END}`);
-    
-    if (sectionRegex.test(existingBody)) {
-        // Replace existing section
-        return existingBody.replace(sectionRegex, newSection);
-    } else {
-        // Append new section
-        return `${existingBody}\n\n${newSection}`;
     }
 }
 
